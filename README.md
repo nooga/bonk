@@ -19,6 +19,18 @@ _TIRED_ of losing projects in your filesystem like socks in a laundromat? _SICK_
 deno install -gArf jsr:@nooga/bonk
 ```
 
+Oh! There are shell completions too! See how to install them:
+
+```bash
+bonk completions --help
+```
+
+Upgrading? Bah! Easy peasy! Just run:
+
+```bash
+bonk upgrade
+```
+
 ## ⚡️ CONFIGURING THIS BAD BOY! ⚡️
 
 Before first use, you'll need to tell `bonk` where your projects live. Create or edit `~/.bonk/config.json`:

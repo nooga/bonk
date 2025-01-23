@@ -2,9 +2,13 @@
 import * as FS from "@std/fs";
 import * as Path from "@std/path";
 import { Command, ValidationError } from "@cliffy/command";
+import { CompletionsCommand } from "@cliffy/command/completions";
+import { UpgradeCommand } from "@cliffy/command/upgrade";
+import { JsrProvider } from "@cliffy/command/upgrade/provider/jsr";
 import { Table } from "@cliffy/table";
 import { colors } from "@cliffy/ansi/colors";
 import { Input } from "@cliffy/prompt";
+import denoConfig from "./deno.json" with { type: "json" };
 
 type Runtime = "node" | "deno" | undefined;
 type PackageManager = "npm" | "yarn" | "pnpm" | "deno";
@@ -768,7 +772,40 @@ function getRageEmoticon(category: EmoticonCategory = "all"): string {
   ];
 }
 
-import ble from "./deno.json" with { type: "json" };
+function projectCompleter(state: State) {
+  return () => {
+    const allProjects = Object.keys(state.projects).sort();
+    if(state.projectInCWD) {
+      // remove current project from list
+      allProjects.splice(allProjects.indexOf(state.projectInCWD), 1);
+      // put current project at the top
+      allProjects.unshift(state.projectInCWD);
+      // put tasks from current project at the top
+      const projectTasks = Object.keys(state.projects[state.projectInCWD].tasks).sort();
+      return projectTasks.concat(allProjects);
+    }
+    return allProjects;
+  };
+}
+
+function taskCompleter(state: State) {
+  return () => {
+    const taskSet = new Set<string>();
+    for (const project of Object.values(state.projects)) {
+      for (const task of Object.keys(project.tasks)) {
+        taskSet.add(task);
+      }
+    }
+    if(state.projectInCWD) {
+      const projectTasks = Object.keys(state.projects[state.projectInCWD].tasks).sort();
+      for(const task of projectTasks) {
+        taskSet.delete(task);
+      }
+      return projectTasks.concat(Array.from(taskSet));
+    }
+    return Array.from(taskSet);
+  };
+}
 
 async function main() {
   const config = await ensureConfig();
@@ -803,7 +840,7 @@ ${colors.dim(`{
   const mainCommand = new Command()
     .throwErrors()
     .name("bonk")
-    .version(ble.version)
+    .version(denoConfig.version)
     .description("Bonk is your chaotic-good JS project companion.")
     .action(() => {
       console.log(
@@ -811,28 +848,64 @@ ${colors.dim(`{
           "v" + mainCommand.getVersion()!
         )}\n       ${mainCommand.getDescription()}`
       );
+
+      const originalHelp = mainCommand.getHelp().split("\n");
+      // get rid of everything before the line containing "Options:"
+      let print = false;
+      for(const line of originalHelp) {
+        if(line.includes("Options:")) {
+          console.log("\n" + line);
+          print = true;
+          continue;
+        }
+        if(print) {
+          console.log(line);
+        }
+      }
     })
     // ls
-    .command("ls", "List projects")
+    .command("ls", "List your projects. Optionally filter by project name")
+    .alias("l")
     .arguments("[filter:string]")
     .action(ls(state))
     // edit
-    .command("edit", "Edit project in your favorite editor")
-    .arguments("[project:string]")
+    .command("edit", "Edit project in your favorite editor.")
+    .alias("e")
+    .arguments("[project:string:project]")
+    .complete("project", projectCompleter(state))
     .action(edit(state))
     // cd
-    .command("cd", "Open a shell in a project")
-    .arguments("[project:string]")
+    .command("cd", "Open a shell in a project.")
+    .alias("c")
+    .arguments("[project:string:project]")
+    .complete("project", projectCompleter(state))
     .action(cd(state))
     // run
-    .command("run", "Run a task in a project")
-    .arguments("[project:string] [task:string] [...args]")
+    .command("run", "Run a task in a project.")
+    .alias("r")
+    .arguments("[project:string:project] [task:string:task] [...args]")
+    .complete("project", projectCompleter(state))
+    .complete("task", taskCompleter(state))
     .option("-b, --bg, --background", "Run in background", { default: false })
     .action(run(state))
     // stop
-    .command("stop", "Stop a background task in a project")
-    .arguments("[project:string] [task:string]")
-    .action(stop(state));
+    .command("stop", "Stop a background task in a project.")
+    .alias("s")
+    .arguments("[project:string:project] [task:string:project]")
+    .complete("project", projectCompleter(state))
+    .complete("task", taskCompleter(state))
+    .action(stop(state))
+    // completions
+    .command("completions", new CompletionsCommand())
+    // upgrade
+    .command(
+      "upgrade",
+      new UpgradeCommand({
+        provider: [
+          new JsrProvider({ scope: "nooga"}),
+        ],
+      }),
+    )
 
   try {
     await mainCommand.parse(Deno.args);
