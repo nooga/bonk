@@ -900,8 +900,13 @@ ${colors.dim(`{
     .command(
       "upgrade",
       new UpgradeCommand({
+        runtime: {
+          deno: {
+            args: ["--allow-all"] // TODO: tighten this up
+          }
+        },
         provider: [
-          new JsrProvider({ scope: "nooga"}),
+          new JsrProvider({ scope: "nooga" }),
         ],
       }),
     )
