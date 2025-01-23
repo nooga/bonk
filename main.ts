@@ -540,7 +540,7 @@ async function findTask(
     usedDefault = true;
   }
 
-  if (project && task && proj) {
+  if (project && task) {
     // try to match first parameter as project
     try {
       proj = await disambiguateProject(state, project);
@@ -554,7 +554,6 @@ async function findTask(
 
   // sanity check
   if (!proj) {
-    console.log(project, task, proj, usedDefault);
     throw new Error("No project specified, bug?");
   }
 
